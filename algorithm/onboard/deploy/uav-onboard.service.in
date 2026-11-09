@@ -1,0 +1,22 @@
+[Unit]
+Description=UAV onboard task (wait for KML, then start)
+After=local-fs.target network.target
+RequiresMountsFor=@PROJECT_DIR@
+Wants=uav-lidar-ptp.service
+
+[Service]
+Type=simple
+User=@RUN_USER@
+SupplementaryGroups=dialout
+WorkingDirectory=@PROJECT_DIR@
+EnvironmentFile=/etc/uav-onboard.env
+ExecStart=/bin/bash "@PROJECT_DIR@/algorithm/onboard/scripts/start_onboard.sh"
+Restart=no
+KillSignal=SIGTERM
+TimeoutStopSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=uav-onboard
+
+[Install]
+WantedBy=multi-user.target

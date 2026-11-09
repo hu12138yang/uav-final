@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Local KML upload integration route</name>
+    <Placemark>
+      <name>Short eastbound route</name>
+      <LineString>
+        <coordinates>
+          113.0000000,21.0000000,0
+          113.0002000,21.0000000,0
+          113.0004000,21.0000000,0
+        </coordinates>
+      </LineString>
+    </Placemark>
+  </Document>
+</kml>

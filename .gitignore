@@ -1,0 +1,10 @@
+# Reproducible build outputs and interpreter caches
+/build/
+/.build/
+**/build/
+**/__pycache__/
+*.py[cod]
+/Testing/
+
+# Hardware captures stay local; existing tracked evidence is retained.
+/algorithm/onboard/test/reports/*/

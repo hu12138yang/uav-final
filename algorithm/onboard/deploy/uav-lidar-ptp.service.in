@@ -1,0 +1,20 @@
+[Unit]
+Description=UAV physical lidar network and PTP master
+After=network-online.target
+Wants=network-online.target
+RequiresMountsFor=@PROJECT_DIR@
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/uav-onboard.env
+WorkingDirectory=@PROJECT_DIR@
+ExecStartPre=/bin/bash "@PROJECT_DIR@/algorithm/onboard/scripts/setup_lidar_network.sh" ${UAV_LIDAR_IFACE}
+ExecStart=/usr/sbin/ptp4l -i ${UAV_LIDAR_IFACE} -f "@PROJECT_DIR@/algorithm/onboard/deploy/ptp4l-master.conf" -m
+Restart=on-failure
+RestartSec=2
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=uav-lidar-ptp
+
+[Install]
+WantedBy=multi-user.target

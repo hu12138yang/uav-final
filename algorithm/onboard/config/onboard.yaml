@@ -1,0 +1,122 @@
+# 板载系统参数
+# 用法：./onboard_main --serial /dev/ttyUSB0 --config config/onboard.yaml
+
+# 雷达通过 SDK2/以太网直接进入机载电脑；不经 MAVLink 传点云。
+# SDK 网络配置见 algorithm/onboard/deploy/mid360s.json。
+lidar:
+  crc_policy: mid360s_sample # 当前设备点云 CRC=0；视为未提供，不当作 CRC 校验成功
+  expected_serial: ARMCP8H0037373
+  point_data_type: 1         # 实测 Cartesian High，96 点 × 14 字节 + 36 字节头 = 1380
+  frame_duration_s: 0.10     # 约 100 ms/帧，输出约 10 Hz
+  gap_factor: 2.0            # 回跳/包间大缺口仍清理半帧
+  min_range_m: 0.10
+  max_range_m: 100.0
+  queue_capacity: 3
+
+# 飞控协议身份与链路
+mavlink:
+  sysid: 245                 # 板载计算机的系统 ID
+  compid: 1
+  target_system: 1           # 飞机 ID（多机时各不相同）
+  target_component: 1
+  heartbeat_hz: 1.0          # GCS 心跳频率
+  link_timeout: 3.0          # 多久收不到飞控心跳算失联（巡航中触发即报错）
+  command_ack_timeout: 2.0
+  max_retry: 3               # 任务下载/解锁的重试次数
+
+# 上电等待接收路径；写入稳定且校验成功后自动启动一条任务。地面站起降。
+mission_input:
+  file: "missions/mission.kml" # 相对启动工作目录；开机服务固定为项目根目录
+  wait_for_file: true
+  file_settle_s: 0.5         # 推荐先写临时文件，再原子重命名到上述路径
+  height_mode: constant
+  constant_alt_m: 50.0
+  max_bytes: 5242880
+  max_waypoints: 2000
+mission:
+  cruise_speed: 5.0
+  handover_position_tolerance_m: 5.0 # 起点水平误差超过此值不接管
+  handover_alt_tolerance_m: 0.8
+  wp_reach_tol: 2.0
+  pre_offboard_stream_s: 1.5
+  use_planner: true
+
+# 报文提频（协议 2.5.1，req_stream_id = 报文 ID）
+streaming:
+  request_rates: true
+  global_position_hz: 50     # GLOBAL_POSITION_INT(33)
+  attitude_hz: 100           # ATTITUDE(30)
+  extension_hz: 10           # EXTENDED_SYS_STATE(245)
+
+# 异常处理：统一进安全悬停
+failsafe:
+  gps:
+    enabled: true
+    min_fix: 6               # 0/1 无定位、2 仅 2D、3 起可用、5 RTK 浮动、6 RTK 固定
+    loss_confirm_s: 0.5      # 连续无效多久判丢星
+    rx_timeout_s: 2.0        # 收不到 GPS_RAW_INT 也按丢星处理
+  sensing:
+    enabled: true
+    timeout_s: 0.5           # 没有首帧/雷达断流/地图过期也判失效
+    drop_frames: 10          # 连续丢多少帧（10 Hz 下 ≈1 s）判感知失效
+  hold_recover_confirm_s: 2.0 # 异常全部清除后稳定多久恢复巡航
+
+# 输出形态
+output:
+  setpoint_hz: 20.0          # 与建图/优化线程分开，避免 UART 带宽溢出
+  velocity_feedforward: false # false = 只发位置+yaw（type_mask 0x09F8）
+
+# 机体
+# 轴距 1.69 m（对角电机间距）→ 电机圆半径 0.845 m。
+# 31 英寸桨：半径 31 × 0.0254 / 2 = 0.394 m。
+# 展开后最大包络半径 = 0.845 + 0.394 = 1.239 m，桨尖直径约 2.48 m。
+# 正六边形按外接圆处理（保守）。
+vehicle:
+  radius: 1.24
+  min_obstacle_gap: 1.5      # 含桨叶包络外，到已建图障碍物的最小设计余量
+
+# 地图
+map:
+  # 机体半径 1.24 + 桨尖余量 1.5 = 2.74 m，向上取整为 11 格 = 2.75 m。
+  # 继续加大到 0.3 会损失薄障碍细节。
+  resolution: 0.25
+  size_xy: [66.0, 66.0]      # 滚动窗口 x/y 尺寸；半宽 33 ≥ recenter 12 + 入图 18
+  altitude_band_half: 10.0   # 高度带向上半宽（基准 = 开始导航那一帧的高度）
+  max_descent_below_ref: 3.25 # 扣掉 2.75 m 地板板层后仍保留约 0.5 m 名义下降空间
+  map_margin_z: 3.25         # 与膨胀同步增加 1.25 m，保持原有虚拟顶板的可飞边界
+  min_flight_height: 5.0     # 最低离地高度（相对起飞点），约 2 倍展开直径
+  update_range_xy: 18.0      # 入图范围；localTarget 的让步上限仍是 15 m（ratio × horizon）
+  # z 入图范围 ±10，覆盖 -3.25（虚拟地板）/ +10（抬升）的整个高度带
+  update_range_z: 10.0
+  # 中心避障距离 2.75 m - 含桨叶包络半径 1.24 m = 名义桨尖余量 1.51 m。
+  # 0.25 体素下 inf_step=11；这是规划设计值，未包含实际跟踪/定位误差。
+  obstacles_inflation: 2.75
+  local_map_margin: 10
+  recenter_margin: 12.0      # 离窗口中心 12 m 滑动；最坏前向 = 33 - 12 = 21 m，完整容纳 18 m 入图
+
+# 规划器
+planner:
+  max_vel: 5.0               # = 巡航速度（18 km/h）；2.5 m 级多旋翼巡检常用值
+  # 展开 2.48 m、包络 1.24 m 的六旋翼，实际加速度能力约 3~5 m/s²；
+  # 填 4 更贴近真实，避免规划出飞控跟不上的激进轨迹
+  max_acc: 4.0
+  planning_horizon: 10.0     # 2 s 的飞行距离；5 m/s 下制动距离约 3.1 m
+  local_target_step: 2.0     # 落点被占时沿航线前走的步长
+  local_target_max_ratio: 1.5 # 让步上限 = 15 m
+  replan_period: 0.5
+  goal_tolerance: 0.5
+  obstacle_clearance: 0.5    # 软约束（硬约束在 obstacles_inflation）
+  ctrl_pt_dist: 0.4
+  time_forward: 1.0
+  astar_pool: [100, 100, 100] # 半程 = (pool/2) × 步长；core 里步长已改成 0.2 → ±10 m
+
+# 外参：雷达 -> 机体（行优先 3x3 + 平移）
+extrinsic:
+  confirmed: false           # 实测雷达->机体 FLU 外参后置 true；观察模式不要求
+  R: [1, 0, 0,
+      0, 1, 0,
+      0, 0, 1]
+  t: [0.0, 0.0, 0.0]
+
+# 机载 -> 地面站 上报（UDP，2 Hz JSON）
+uplink: ""                   # 例："192.168.1.100:14560"，空 = 不上报

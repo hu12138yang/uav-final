@@ -1,0 +1,41 @@
+Scanning dependencies of target mission_input
+Scanning dependencies of target timing_selftest
+Scanning dependencies of target offboard_flow_selftest
+[  0%] Building CXX object CMakeFiles/mission_input.dir/src/mission_input.cpp.o
+[ 33%] Built target livox_lidar_sdk_static
+[ 34%] Building CXX object CMakeFiles/timing_selftest.dir/test/timing_selftest.cpp.o
+[ 36%] Building CXX object CMakeFiles/offboard_flow_selftest.dir/test/offboard_flow_selftest.cpp.o
+Scanning dependencies of target ego_adapter_selftest
+[ 36%] Building CXX object CMakeFiles/ego_adapter_selftest.dir/test/ego_adapter_selftest.cpp.o
+[ 37%] Building CXX object CMakeFiles/ego_adapter_selftest.dir/src/ego_planner_adapter.cpp.o
+[ 37%] Building CXX object CMakeFiles/timing_selftest.dir/src/offboard_pilot.cpp.o
+[ 38%] Linking CXX static library libmission_input.a
+[ 38%] Built target mission_input
+Scanning dependencies of target perception_guard_selftest
+[ 40%] Building CXX object CMakeFiles/perception_guard_selftest.dir/test/perception_guard_selftest.cpp.o
+[ 40%] Building CXX object CMakeFiles/offboard_flow_selftest.dir/src/offboard_pilot.cpp.o
+[ 40%] Linking CXX executable ego_adapter_selftest
+[ 48%] Built target ego_adapter_selftest
+Scanning dependencies of target mission_input_selftest
+[ 49%] Building CXX object CMakeFiles/mission_input_selftest.dir/test/mission_input_selftest.cpp.o
+[ 49%] Building CXX object CMakeFiles/perception_guard_selftest.dir/src/offboard_pilot.cpp.o
+[ 50%] Linking CXX executable timing_selftest
+[ 54%] Built target timing_selftest
+[ 60%] Built target sensor_selftest
+[ 62%] Built target mavlink_selftest
+[ 64%] Built target sdk_boundary_selftest
+Scanning dependencies of target onboard_main
+[ 64%] Building CXX object CMakeFiles/onboard_main.dir/src/onboard_main.cpp.o
+[ 65%] Linking CXX executable offboard_flow_selftest
+[ 72%] Built target offboard_flow_selftest
+[ 73%] Building CXX object CMakeFiles/onboard_main.dir/src/offboard_pilot.cpp.o
+[ 73%] Building CXX object CMakeFiles/mission_input_selftest.dir/src/offboard_pilot.cpp.o
+[ 74%] Building CXX object CMakeFiles/perception_guard_selftest.dir/src/ego_planner_adapter.cpp.o
+[ 76%] Building CXX object CMakeFiles/onboard_main.dir/src/ego_planner_adapter.cpp.o
+[ 77%] Building CXX object CMakeFiles/onboard_main.dir/src/config_file.cpp.o
+[ 78%] Linking CXX executable perception_guard_selftest
+[ 86%] Built target perception_guard_selftest
+[ 88%] Linking CXX executable mission_input_selftest
+[ 88%] Built target mission_input_selftest
+[ 89%] Linking CXX executable onboard_main
+[100%] Built target onboard_main

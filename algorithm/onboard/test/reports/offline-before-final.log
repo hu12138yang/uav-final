@@ -1,0 +1,31 @@
+Test project /tmp/uav-last-sync-build
+      Start  1: mission_input_selftest
+ 1/13 Test  #1: mission_input_selftest ...........   Passed    0.00 sec
+      Start  2: offboard_flow_selftest
+ 2/13 Test  #2: offboard_flow_selftest ...........   Passed    0.01 sec
+      Start  3: ego_adapter_selftest
+ 3/13 Test  #3: ego_adapter_selftest .............   Passed    0.53 sec
+      Start  4: sensor_selftest
+ 4/13 Test  #4: sensor_selftest ..................   Passed    0.00 sec
+      Start  5: mavlink_selftest
+ 5/13 Test  #5: mavlink_selftest .................   Passed    0.00 sec
+      Start  6: kml_prepare_only
+ 6/13 Test  #6: kml_prepare_only .................   Passed    0.00 sec
+      Start  7: kml_planner_sim
+ 7/13 Test  #7: kml_planner_sim ..................   Passed    0.11 sec
+      Start  8: timing_selftest
+ 8/13 Test  #8: timing_selftest ..................   Passed    0.00 sec
+      Start  9: kml_closed_planner_sim
+ 9/13 Test  #9: kml_closed_planner_sim ...........   Passed    0.16 sec
+      Start 10: sdk_boundary_selftest
+10/13 Test #10: sdk_boundary_selftest ............   Passed    0.00 sec
+      Start 11: perception_guard_selftest
+11/13 Test #11: perception_guard_selftest ........   Passed    0.05 sec
+      Start 12: gps_dropout_recovery_sim
+12/13 Test #12: gps_dropout_recovery_sim .........   Passed    0.11 sec
+      Start 13: lidar_dropout_recovery_sim
+13/13 Test #13: lidar_dropout_recovery_sim .......   Passed    0.10 sec
+
+100% tests passed, 0 tests failed out of 13
+
+Total Test time (real) =   1.07 sec

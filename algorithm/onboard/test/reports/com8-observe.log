@@ -1,0 +1,23 @@
+[HARDWARE] real FCU; SDK2 cloud only
+[OBSERVE] no task/mode/motion commands
+[STATUS] t=0.0 LINK GPS=0 pose=0 sync=0 n=0 RTT=0.00ms reject=0 lidar=0 type=0 aligned=0 map=0 loop_max=0.0ms CRC=0
+[STATUS] t=1.0 LINK GPS=0 pose=0 sync=0 n=0 RTT=0.00ms reject=4 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[STATUS] t=2.0 LINK GPS=0 pose=0 sync=0 n=0 RTT=0.00ms reject=9 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[STATUS] t=3.0 LINK GPS=0 pose=0 sync=0 n=0 RTT=0.00ms reject=14 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[STATUS] t=4.0 LINK GPS=0 pose=0 sync=0 n=0 RTT=0.00ms reject=19 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[STATUS] t=5.0 LINK GPS=0 pose=0 sync=0 n=0 RTT=0.00ms reject=24 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[STATUS] t=6.0 LINK GPS=0 pose=0 sync=0 n=0 RTT=0.00ms reject=29 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[STATUS] t=7.0 LINK GPS=0 pose=0 sync=0 n=0 RTT=0.00ms reject=34 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[STATUS] t=8.0 LINK GPS=0 pose=0 sync=0 n=0 RTT=0.00ms reject=39 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[STATUS] t=9.0 LINK GPS=0 pose=0 sync=0 n=0 RTT=0.00ms reject=44 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[STATUS] t=10.0 LINK GPS=0 pose=0 sync=0 n=1 RTT=8.39ms reject=48 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[STATUS] t=11.0 LINK GPS=0 pose=0 sync=0 n=1 RTT=8.39ms reject=53 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[STATUS] t=12.0 LINK GPS=0 pose=0 sync=0 n=1 RTT=8.39ms reject=58 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[STATUS] t=13.0 LINK GPS=0 pose=0 sync=0 n=1 RTT=8.39ms reject=63 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[STATUS] t=14.0 LINK GPS=0 pose=0 sync=0 n=1 RTT=8.39ms reject=68 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[STATUS] t=15.0 LINK GPS=0 pose=0 sync=0 n=2 RTT=6.36ms reject=72 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[STATUS] t=16.0 LINK GPS=0 pose=0 sync=0 n=2 RTT=6.36ms reject=77 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[STATUS] t=17.0 LINK GPS=0 pose=0 sync=0 n=2 RTT=6.36ms reject=82 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[STATUS] t=18.0 LINK GPS=0 pose=0 sync=0 n=2 RTT=6.36ms reject=87 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[STATUS] t=19.0 LINK GPS=0 pose=0 sync=0 n=2 RTT=6.36ms reject=92 lidar=0 type=0 aligned=0 map=0 loop_max=2.5ms CRC=1
+[RESULT] phase=LINK reason=NONE error= maps=0 points=0 plans=0 failures=0 aligned=0 rejected=0 max_loop=2.46ms
