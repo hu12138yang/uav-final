@@ -48,6 +48,11 @@ streaming:
   attitude_hz: 100           # ATTITUDE(30)
   extension_hz: 10           # EXTENDED_SYS_STATE(245)
 
+# 位置采用最新真实位置+速度外推，新定位到达后更换锚点，不等第二帧。
+# 时长从原始定位时间戳起算；超时拒绝，不将时间截短后冒充新位置。
+timing:
+  position_extrapolation_s: 0.25
+
 # 异常处理：统一进安全悬停
 failsafe:
   gps:

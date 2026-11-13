@@ -20,15 +20,18 @@ namespace ego_sensor
 
   namespace
   {
-    // 在 [a, b] 上按比例 u 插值
-    TimedPose lerp(const TimedPose &a, const TimedPose &b, double u)
+    bool positionAt(double t, const TimedPose &a, const TimedPose &b, TimedPose &out)
     {
-      TimedPose out;
-      out.t = a.t + (b.t - a.t) * u;
-      out.p = a.p + (b.p - a.p) * u;
-      out.q = a.q.slerp(u, b.q);
-      out.q.normalize();
-      return out;
+      if (!a.position_anchor.valid && !b.position_anchor.valid) return true;
+      const PositionAnchor *anchor = nullptr;
+      for (const auto *candidate : {&a.position_anchor, &b.position_anchor}) {
+        if (candidate->valid && candidate->t <= t + 1e-9 &&
+            (!anchor || candidate->t > anchor->t)) anchor = candidate;
+      }
+      if (!anchor || !anchor->positionAt(t, out.p)) return false;
+      out.t = t;
+      out.position_anchor = *anchor;
+      return true;
     }
   } // namespace
 
@@ -47,12 +50,12 @@ namespace ego_sensor
     if (t <= buf_.front().t)
     {
       out = buf_.front();
-      return true;
+      return positionAt(t, buf_.front(), buf_.front(), out);
     }
     if (t >= buf_.back().t)
     {
       out = buf_.back();
-      return true;
+      return positionAt(t, buf_.back(), buf_.back(), out);
     }
 
     // 二分查找（缓冲可能上千个样本，每帧要查几千次，线性扫描扛不住）
@@ -61,19 +64,24 @@ namespace ego_sensor
     if (it == buf_.begin())
     {
       out = buf_.front();
-      return true;
+      return positionAt(t, buf_.front(), buf_.front(), out);
     }
     if (it == buf_.end())
     {
       out = buf_.back();
-      return true;
+      return positionAt(t, buf_.back(), buf_.back(), out);
     }
     const TimedPose &b = *it;
     const TimedPose &a = *(it - 1);
     const double dt = b.t - a.t;
     if (dt > max_gap_ && t != b.t) return false;
-    out = (dt > 1e-9) ? lerp(a, b, (t - a.t) / dt) : b;
-    return true;
+    const double u = dt > 1e-9 ? (t - a.t) / dt : 1.0;
+    out = TimedPose();
+    out.t = t;
+    if (!a.position_anchor.valid && !b.position_anchor.valid)
+      out.p = a.p + (b.p - a.p) * u; // 其他位姿来源保留其位置插值语义
+    out.q = a.q.slerp(u, b.q).normalized();
+    return positionAt(t, a, b, out);
   }
 
 } // namespace ego_sensor

@@ -10,6 +10,10 @@ int main(int argc,char **argv) {
   bool ok=true;
   auto check=[&](YAML::Node root,bool expected){std::ofstream out(path);out<<root;out.close();ego_onboard::AppConfig parsed;std::string err;const bool result=ego_onboard::loadConfigFile(path,parsed,err);ok=ok&&(result==expected);};
   auto root=YAML::LoadFile(argv[1]);root["lidar"]["crc_policy"]="strict";root["lidar"]["expected_serial"]="";check(root,true);
+  root=YAML::LoadFile(argv[1]);root["timing"]["position_extrapolation_s"]=0.5;check(root,true);
+  root=YAML::LoadFile(argv[1]);root["timing"]["position_extrapolation_s"]=0;check(root,false);
+  root=YAML::LoadFile(argv[1]);root["timing"]["position_extrapolation_s"]=2.1;check(root,false);
+  root=YAML::LoadFile(argv[1]);root["timing"]["position_extrapolation_s"]=".nan";check(root,false);
   root=YAML::LoadFile(argv[1]);root["map"]["obstacles_inflation"]=1.5;check(root,false);
   root=YAML::LoadFile(argv[1]);root["vehicle"]["min_obstacle_gap"]=".nan";check(root,false);
   root=YAML::LoadFile(argv[1]);root["vehicle"]["radius"]=1.4;check(root,false);

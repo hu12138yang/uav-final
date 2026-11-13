@@ -4,6 +4,7 @@
 #include <Eigen/Eigen>
 
 #include <cstddef>
+#include <cmath>
 #include <deque>
 #include <vector>
 
@@ -20,12 +21,35 @@ namespace ego_sensor
   // （按每点自己的采样时刻做去畸变）固定在代码里。
   // ---------------------------------------------------------------------------
 
-  // 一帧位姿采样，局部 ENU / 世界系。规划器不关心它是 VIO、RTK 还是融合出来的。
+  // 单帧真实定位锚点。t、p、v必须来自同一定位样本并使用同一时间轴。
+  struct PositionAnchor
+  {
+    double t = 0.0;
+    Eigen::Vector3d p = Eigen::Vector3d::Zero();
+    Eigen::Vector3d v = Eigen::Vector3d::Zero();
+    double max_extrapolation_s = 0.25;
+    bool valid = false;
+
+    bool positionAt(double target, Eigen::Vector3d &out) const
+    {
+      const double dt = target - t;
+      if (!valid || !std::isfinite(target) || !std::isfinite(t) ||
+          !std::isfinite(max_extrapolation_s) || max_extrapolation_s <= 0 ||
+          !p.allFinite() || !v.allFinite() ||
+          dt < -1e-9 || dt > max_extrapolation_s + 1e-9) return false;
+      // 仅消除浮点舍入产生的微小负值，不把过期的dt截短后伪装成目标时刻。
+      out = p + v * (dt < 0 ? 0 : dt);
+      return out.allFinite();
+    }
+  };
+
+  // 一帧位姿采样，局部 ENU / 世界系。
   struct TimedPose
   {
     double t = 0.0;                                        // 秒，与 LidarPoint::t_rel / LidarFrame::t_base 同一时钟
     Eigen::Vector3d p = Eigen::Vector3d::Zero();            // 世界系位置
     Eigen::Quaterniond q = Eigen::Quaterniond::Identity();  // 机体系 -> 世界系
+    PositionAnchor position_anchor; // 飞控位置+速度来源；逐点位置直接由该真实锚点外推
   };
 
   // 时间戳位姿缓冲 + 插值。
@@ -36,7 +60,8 @@ namespace ego_sensor
   public:
     // 追加一个采样（要求时间单调不减，否则丢弃）
     void add(const TimedPose &pose);
-    // 取 t 时刻的位姿（线性 + slerp 插值）；覆盖不到返回 false
+    // 取t时刻位姿：有定位锚点时按速度外推位置，姿态仍做slerp。
+    // 不带锚点的其他位姿来源保持原有位置插值；覆盖不到返回false。
     bool poseAt(double t, TimedPose &out) const;
 
     bool empty() const { return buf_.empty(); }

@@ -142,12 +142,13 @@ namespace ego_onboard
       bool observe_only = false;
       bool require_timesync = false; // main enables for ALL physical operation
       double pose_timeout_s = 0.25;
+      double position_extrapolation_s = 0.25; // 单帧位置+速度外推的有效时长；新位置立即换锚点
       double setpoint_hz = 20.0;
       
     };
 
     void setPlanner(PlannerIO *p) { planner_ = p; }
-    void setConfig(const Config &c) { cfg_ = c; PoseAssemblerConfig pc; pc.strict_position_brackets=c.require_timesync; pose_asm_.setConfig(pc); }
+    void setConfig(const Config &c) { cfg_ = c; PoseAssemblerConfig pc; pc.max_position_extrapolation_s=c.position_extrapolation_s; pose_asm_.setConfig(pc); }
     const Config &config() const { return cfg_; }
 
     // 航线以「第 1 个航点 = 起飞点」约定传入（与 KML 一致）
@@ -156,7 +157,13 @@ namespace ego_onboard
     void setReceiveTime(double now) { t_now_ = now; }
     void setInputReady(bool ready) { input_ready_ = ready; }
     const TimeAlignment &timeAlignment() const { return alignment_; }
-    bool poseFresh(double now) const { return have_pos_ && (!cfg_.require_timesync || (now >= latest_pose_.t && now-latest_pose_.t <= cfg_.pose_timeout_s)) && now - t_last_pos_ <= cfg_.pose_timeout_s && now - t_last_att_ <= cfg_.pose_timeout_s; }
+    bool poseFresh(double now) const {
+      Eigen::Vector3d predicted;
+      return have_pos_ && (!cfg_.require_timesync ||
+        (now >= latest_pose_.t && now-latest_pose_.t <= cfg_.pose_timeout_s &&
+         latest_pose_.position_anchor.positionAt(now,predicted))) &&
+        now-t_last_pos_ <= cfg_.position_extrapolation_s && now-t_last_att_ <= cfg_.pose_timeout_s;
+    }
     bool clockReady(double now) const { return !cfg_.require_timesync || alignment_.valid(now); }
     void stop(const std::string &why) { fail(why); }
     double fcuUnixTime() const { return fcu_unix_; }
@@ -203,7 +210,6 @@ namespace ego_onboard
     void onGlobalPositionInt(const GlobalPositionInt &g);
     void onGpsRawInt(const GpsRawInt &g);
     void onAttitude(const Attitude &a);
-    void publishAttitudes();
     void onMissionRequestInt(const MissionRequestInt &r, std::vector<std::vector<uint8_t>> &out);
     void onMissionAck(const MissionAck &ack);
     void onCommandAck(const CommandAck &ack);
@@ -236,7 +242,6 @@ namespace ego_onboard
     double t_last_sync_request_ = -1e9, t_last_pos_ = -1e9, t_last_att_ = -1e9;
     double last_pos_boot_ = -1, last_att_boot_ = -1, fcu_unix_ = 0;
     bool input_ready_ = true;
-    std::deque<Attitude> pending_attitudes_;
 
     PoseAssembler pose_asm_;
 

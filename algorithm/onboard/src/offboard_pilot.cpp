@@ -258,7 +258,6 @@ namespace ego_onboard
     pose_asm_.onGlobalPositionInt(g);
     pos_enu_ = pose_asm_.positionEnu();
     have_pos_ = true;
-    if (cfg_.require_timesync) publishAttitudes();
 
     // 航位推算：定位有效就用它重置锚点；无效则对速度做一次积分（输出经纬高给上报用）
     if (gps_fix_type_ >= cfg_.gps_min_fix && t_now_-t_last_gps_<=cfg_.gps_rx_timeout_s)
@@ -290,36 +289,17 @@ namespace ego_onboard
     if (boot <= last_att_boot_) return;
     last_att_boot_ = boot; t_last_att_ = t_now_;
     if (cfg_.require_timesync && (!alignment_.valid(t_now_) || std::abs(alignment_.hostTime(boot) - t_now_) > cfg_.pose_timeout_s)) return;
-    if (t_now_ - t_last_pos_ > cfg_.pose_timeout_s) return;
-    if (cfg_.require_timesync) {
-      pending_attitudes_.push_back(a);
-      while(pending_attitudes_.size()>100) pending_attitudes_.pop_front();
-      publishAttitudes();
-      return;
-    }
+    if (t_now_ - t_last_pos_ > cfg_.position_extrapolation_s) return;
     ego_sensor::TimedPose tp;
     if (!pose_asm_.onAttitude(a, boot, tp)) return;
-    tp.t=clock_.hostTime(a.time_boot_ms);
+    tp.t=cfg_.require_timesync ? alignment_.hostTime(boot) : clock_.hostTime(a.time_boot_ms);
+    // 位姿和定位锚点必须使用同一个时钟映射，逐点查询才可继续按速度外推。
+    tp.position_anchor.t += tp.t - boot;
+    if (cfg_.require_timesync &&
+        (t_now_-tp.t>cfg_.pose_timeout_s || tp.t>t_now_+0.005)) return;
     hold_yaw_ = std::atan2(tp.q.toRotationMatrix()(1,0),tp.q.toRotationMatrix()(0,0));
     pos_ctrl_=tp.p; latest_pose_=tp;
     if(planner_)planner_->onPose(tp);
-  }
-
-  void OffboardPilot::publishAttitudes() {
-    if (!alignment_.valid(t_now_)) { pending_attitudes_.clear(); return; }
-    while(!pending_attitudes_.empty()) {
-      const auto a=pending_attitudes_.front();
-      const double boot=a.time_boot_ms*.001;
-      if(boot>last_pos_boot_) break; // Wait for real RTK/EKF position on BOTH sides.
-      pending_attitudes_.pop_front();
-      ego_sensor::TimedPose tp;
-      if(!pose_asm_.onAttitude(a,boot,tp)) continue;
-      tp.t=alignment_.hostTime(boot);
-      if(t_now_-tp.t>cfg_.pose_timeout_s||tp.t<t_now_ - 1.0||tp.t>t_now_+0.005) continue;
-      hold_yaw_ = std::atan2(tp.q.toRotationMatrix()(1,0),tp.q.toRotationMatrix()(0,0));
-      pos_ctrl_=tp.p; latest_pose_=tp;
-      if(planner_)planner_->onPose(tp);
-    }
   }
 
   void OffboardPilot::onMissionRequestInt(const MissionRequestInt &r, std::vector<std::vector<uint8_t>> &out)

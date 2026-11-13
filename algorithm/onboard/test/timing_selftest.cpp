@@ -18,6 +18,16 @@ std::vector<uint8_t> packet(uint64_t ns,uint8_t type=1) {
   for(int i=0;i<3;++i) {b[36+i*14]=0xE8;b[37+i*14]=0x03;}
   return b;
 }
+struct PoseHistory : PlannerIO {
+  std::vector<TimedPose> values;
+  void onPose(const TimedPose &pose) override { values.push_back(pose); }
+  void onScanFrame(const LidarFrame &) override {}
+  bool step(double,const Eigen::Vector3d &,ego_planner::QuadrotorCommand &) override { return false; }
+};
+void feed(OffboardPilot &pilot,double now,uint32_t id,const uint8_t *payload,size_t size) {
+  const auto wire=pack(1,1,0,id,payload,size);
+  pilot.setReceiveTime(now);pilot.onMavlinkBytes(wire.data(),wire.size());
+}
 }
 int main() {
   TimeAlignment t;
@@ -61,12 +71,90 @@ int main() {
   ScanAssembler scan;std::vector<Eigen::Vector3d> cloud;LidarFrame empty;
   check(!scan.toWorld(empty,poses,cloud),"empty cloud cannot count as a healthy map update");
   GeoOrigin origin; origin.valid=true;
-  PoseAssembler fused; fused.setOrigin(origin); PoseAssemblerConfig strict; strict.strict_position_brackets=true; fused.setConfig(strict);
-  GlobalPositionInt g;g.time_boot_ms=1000;g.relative_alt=1000;fused.onGlobalPositionInt(g);
+  PoseAssembler fused; fused.setOrigin(origin);
+  GlobalPositionInt g;g.time_boot_ms=1000;g.relative_alt=1000;
+  g.vx=100;g.vy=200;g.vz=-300;fused.onGlobalPositionInt(g);
   Attitude att;att.time_boot_ms=1010;TimedPose fused_pose;
-  check(!fused.onAttitude(att,1.01,fused_pose),"physical pose waits for a future RTK/EKF bracket");
-  g.time_boot_ms=1020;g.relative_alt=3000;fused.onGlobalPositionInt(g);
-  check(fused.onAttitude(att,1.01,fused_pose)&&std::abs(fused_pose.p.z()-2.0)<1e-9,"RTK/EKF position interpolates to the attitude sample time");
+  check(fused.onAttitude(att,1.01,fused_pose)&&
+        (fused_pose.p-Eigen::Vector3d(.02,.01,1.03)).norm()<1e-9,
+        "one position+NED velocity immediately predicts ENU position without a second fix");
+  check(fused.onAttitude(att,1.20,fused_pose)&&std::abs(fused_pose.p.z()-1.60)<1e-9&&
+        fused.onAttitude(att,1.25,fused_pose)&&std::abs(fused_pose.p.z()-1.75)<1e-9,
+        "same real fix continuously predicts successive targets through its horizon");
+  check(!fused.onAttitude(att,1.251,fused_pose)&&!fused.onAttitude(att,.99,fused_pose),
+        "expired anchor and target before first fix are rejected instead of clamping time");
+  g.time_boot_ms=1020;g.relative_alt=3000;g.vz=-100;fused.onGlobalPositionInt(g);
+  check(fused.onAttitude(att,1.03,fused_pose)&&std::abs(fused_pose.p.z()-3.01)<1e-9,
+        "new fix replaces both position and velocity anchor; no blend with old prediction");
+  check(fused.onAttitude(att,1.01,fused_pose)&&std::abs(fused_pose.p.z()-1.03)<1e-9,
+        "delayed attitude uses its latest causal anchor, never a future fix");
+  g.time_boot_ms=1010;g.relative_alt=99000;fused.onGlobalPositionInt(g);
+  check(fused.onAttitude(att,1.03,fused_pose)&&std::abs(fused_pose.p.z()-3.01)<1e-9,
+        "out-of-order position cannot overwrite the latest real anchor");
+
+  // At a real fix correction, point positions must not linearly mix the old/new anchors.
+  PoseBuffer anchored;anchored.setStrictCoverage(true);
+  TimedPose before,after;before.t=10.1;after.t=10.2;
+  before.position_anchor.valid=true;before.position_anchor.t=10;
+  before.position_anchor.v=Eigen::Vector3d(2,0,0);before.position_anchor.max_extrapolation_s=.3;
+  before.position_anchor.positionAt(before.t,before.p);
+  after.position_anchor=before.position_anchor;after.position_anchor.t=10.15;
+  after.position_anchor.p=Eigen::Vector3d(10,0,0);after.position_anchor.v=Eigen::Vector3d(3,0,0);
+  after.position_anchor.positionAt(after.t,after.p);
+  anchored.add(before);anchored.add(after);
+  check(anchored.poseAt(10.14,out)&&std::abs(out.p.x()-.28)<1e-9&&
+        anchored.poseAt(10.16,out)&&std::abs(out.p.x()-10.03)<1e-9,
+        "per-point lookup extrapolates its causal fix and switches at the new fix timestamp");
+  LidarFrame prediction_frame;prediction_frame.t_base=10.14;
+  LidarPoint sample;sample.p=Eigen::Vector3d(1,0,0);prediction_frame.points.push_back(sample);
+  sample.t_rel=.02;prediction_frame.points.push_back(sample);
+  check(scan.toWorld(prediction_frame,anchored,cloud)&&cloud.size()==2&&
+        std::abs(cloud[0].x()-1.28)<1e-9&&std::abs(cloud[1].x()-11.03)<1e-9,
+        "actual point transform uses velocity predictions on both sides of a real position correction");
+  PoseBuffer stale;stale.setStrictCoverage(true);
+  before.t=10.2;after.t=10.3;after.position_anchor=before.position_anchor;
+  before.position_anchor.max_extrapolation_s=.25;after.position_anchor.max_extrapolation_s=.25;
+  stale.add(before);stale.add(after);
+  check(!stale.poseAt(10.26,out),"fresh attitude endpoints cannot renew an expired position anchor");
+
+  // Exercise the real TIMESYNC-enabled pilot, not only the standalone position helper.
+  OffboardPilot live;OffboardPilot::Config live_config;live_config.require_timesync=true;
+  live.setConfig(live_config);live.startObserving();PoseHistory actual;live.setPlanner(&actual);
+  uint8_t home[60]{};feed(live,100,242,home,sizeof(home));
+  for(int i=0;i<10;++i) {
+    double sent=100+i*.21;std::vector<std::vector<uint8_t>> requests;live.tick(sent,requests);
+    Parser request_parser;
+    for(const auto &wire:requests)for(auto byte:wire){MavMessage message;if(request_parser.push(byte,message)&&message.msgid==111){
+      Timesync reply;Timesync::decode(message.payload.data(),message.payload.size(),reply);
+      reply.tc1=int64_t((sent+.002-42)*1e9);
+      reply.target_system=live_config.sysid;reply.target_component=live_config.compid;
+      uint8_t payload[Timesync::LEN]{};
+      reply.encode(payload);feed(live,sent+.004,111,payload,sizeof(payload));
+    }}
+  }
+  check(live.clockReady(102),"real pilot fixture has a valid flight-clock mapping");
+  uint8_t pos[28]{};wrU32(pos,0,60000);wrI32(pos,16,10000);wrU16(pos,24,uint16_t(int16_t(-200)));
+  feed(live,102.002,33,pos,sizeof(pos));
+  uint8_t attitude[28]{};
+  for(uint32_t boot:{60010u,60050u,60100u}) {
+    wrU32(attitude,0,boot);feed(live,42+boot*.001+.002,30,attitude,sizeof(attitude));
+  }
+  check(actual.values.size()==3&&std::abs(actual.values.back().p.z()-10.2)<1e-8&&
+        std::abs(actual.values.back().position_anchor.t-102)<1e-7,
+        "TIMESYNC-enabled pilot publishes every attitude from one fix and maps anchor time too");
+  wrU32(pos,0,60120);wrI32(pos,16,20000);wrU16(pos,24,uint16_t(int16_t(-100)));
+  feed(live,102.122,33,pos,sizeof(pos));wrU32(attitude,0,60130);
+  feed(live,102.132,30,attitude,sizeof(attitude));
+  check(actual.values.size()==4&&std::abs(actual.values.back().p.z()-20.01)<1e-8&&
+        std::abs(actual.values.front().p.z()-10.02)<1e-8,
+        "new fix immediately anchors the next attitude and preserves already-published history");
+  wrU32(attitude,0,60371);feed(live,102.373,30,attitude,sizeof(attitude));
+  check(actual.values.size()==4&&!live.poseFresh(102.373),
+        "position dropout expires despite continued attitude traffic");
+  wrU32(pos,0,60380);wrI32(pos,16,30000);feed(live,102.382,33,pos,sizeof(pos));
+  wrU32(attitude,0,60390);feed(live,102.392,30,attitude,sizeof(attitude));
+  check(actual.values.size()==5&&std::abs(actual.values.back().p.z()-30.01)<1e-8,
+        "next real position recovers prediction immediately without a second-fix wait");
   // Observation must remain non-controlling even with fresh, armed FCU telemetry.
   OffboardPilot pilot;OffboardPilot::Config pc;pc.require_timesync=true;pilot.setConfig(pc);pilot.startObserving();
   bool forbidden=false;Parser decoder;

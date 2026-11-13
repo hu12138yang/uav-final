@@ -110,15 +110,11 @@ namespace ego_mav
   };
 
   // ------------------------------------------------------ 位姿组装（输入侧）
-  // 位置来自 GLOBAL_POSITION_INT(2Hz)，姿态来自 ATTITUDE(10Hz)。
-  // ⚠️ 2 Hz 的位置直接拿来用会滞后 0.5 s（2 m/s 下就是 1 m），所以用最近一次
-  //    速度做短时外推；真正上机建议先用 REQUEST_DATA_STREAM 把频率提上去，
-  //    或走独立的 IMU+RTK 融合。
+  // 每条GLOBAL_POSITION_INT给出一个真实位置+速度锚点。
+  // 姿态到达即可按最近的非未来锚点外推位置，不等待后一帧定位。
   struct PoseAssemblerConfig
   {
-    bool extrapolate_position = true;
-    bool strict_position_brackets = false;
-    void *unused = nullptr;
+    double max_position_extrapolation_s = 0.25;
   };
 
   class PoseAssembler
@@ -137,13 +133,16 @@ namespace ego_mav
     {
       if (!origin_.valid)
         return;
+      const double boot = (double)g.time_boot_ms * 1e-3;
+      if (!position_history_.empty() && boot <= position_history_.back().t) return;
       const Eigen::Vector2d xy = geoToEnuXY(g.lat * 1e-7, g.lon * 1e-7, origin_);
       pos_enu_ = Eigen::Vector3d(xy.x(), xy.y(), g.relative_alt * 1e-3);
       vel_enu_ = nedToEnu(Eigen::Vector3d(g.vx, g.vy, g.vz) * 1e-2);
-      pos_boot_s_ = (double)g.time_boot_ms * 1e-3;
       has_pos_ = true;
-      if (!position_history_.empty() && pos_boot_s_ <= position_history_.back().t) return;
-      ego_sensor::TimedPose sample; sample.t=pos_boot_s_; sample.p=pos_enu_;
+      ego_sensor::PositionAnchor sample;
+      sample.t=boot; sample.p=pos_enu_; sample.v=vel_enu_;
+      sample.max_extrapolation_s=cfg_.max_position_extrapolation_s;
+      sample.valid=true;
       position_history_.push_back(sample);
       while(position_history_.size()>500) position_history_.pop_front();
     }
@@ -153,26 +152,14 @@ namespace ego_mav
     {
       if (!has_pos_)
         return false;
-      Eigen::Vector3d p = pos_enu_;
-      if (cfg_.strict_position_brackets) {
-        if(position_history_.empty()||t_boot_s<position_history_.front().t||t_boot_s>position_history_.back().t) return false;
-        auto upper=std::lower_bound(position_history_.begin(),position_history_.end(),t_boot_s,
-          [](const ego_sensor::TimedPose &v,double time){return v.t<time;});
-        if(upper==position_history_.begin()||upper->t==t_boot_s) p=upper->p;
-        else {
-          const auto &lo=*(upper-1);
-          if(upper->t-lo.t>0.1) return false;
-          p=lo.p+(upper->p-lo.p)*((t_boot_s-lo.t)/(upper->t-lo.t));
-        }
-      }
-      else if (cfg_.extrapolate_position)
-      {
-        double dt = t_boot_s - pos_boot_s_;
-        if (dt < 0.0) dt = 0.0;
-        if (dt > 0.5) dt = 0.5; // 外推超过 0.5 s 就不敢再推
-        p += vel_enu_ * dt;
-      }
-      out.p = p;
+      if (!std::isfinite(t_boot_s)) return false;
+      // 历史只用于处理串口批次中较晚收到的旧姿态，绝不使用未来定位倒推。
+      auto upper=std::upper_bound(position_history_.begin(),position_history_.end(),t_boot_s,
+        [](double time,const ego_sensor::PositionAnchor &v){return time<v.t;});
+      if (upper==position_history_.begin()) return false;
+      const auto &anchor=*(upper-1);
+      if (!anchor.positionAt(t_boot_s,out.p)) return false;
+      out.position_anchor=anchor;
       out.q = attitudeNedToEnuBody(a.roll, a.pitch, a.yaw);
       // 位姿自己的时刻：逐点去畸变要靠它把每个点对到"它采样那一刻"的位姿上，
       // 缺了这一步整条位姿历史的时间戳都是 0。
@@ -185,9 +172,8 @@ namespace ego_mav
     PoseAssemblerConfig cfg_;
     Eigen::Vector3d pos_enu_ = Eigen::Vector3d::Zero();
     Eigen::Vector3d vel_enu_ = Eigen::Vector3d::Zero();
-    double pos_boot_s_ = 0.0;
     bool has_pos_ = false;
-    std::deque<ego_sensor::TimedPose> position_history_;
+    std::deque<ego_sensor::PositionAnchor> position_history_;
   };
 
   // ------------------------------------------------------ 设定值（输出侧）

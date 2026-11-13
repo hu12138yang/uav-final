@@ -117,6 +117,10 @@ namespace ego_onboard
       get(n, "extension_hz", out.pilot.rate_extension_hz);
     }
 
+    if (const auto n = root["timing"]) {
+      get(n, "position_extrapolation_s", out.pilot.position_extrapolation_s);
+    }
+
     // ---------------- 异常处理 / 悬停 ----------------
     if (const YAML::Node n = root["failsafe"])
     {
@@ -216,6 +220,11 @@ namespace ego_onboard
       out.uplink = root["uplink"].as<std::string>();
 
     // ---------------- 参数校验 ----------------
+    if (!std::isfinite(out.pilot.position_extrapolation_s) ||
+        out.pilot.position_extrapolation_s <= 0 || out.pilot.position_extrapolation_s > 2.0) {
+      err = "timing.position_extrapolation_s must be finite and in (0, 2] seconds";
+      return false;
+    }
     // 显式覆盖含桨叶的机体包络及所需桨尖余量；不把优化器软约束当硬间距。
     if (!std::isfinite(out.vehicle_radius) || out.vehicle_radius <= 0 ||
         !std::isfinite(out.min_obstacle_gap) || out.min_obstacle_gap < 0 ||
